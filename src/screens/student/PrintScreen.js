@@ -1,5 +1,6 @@
 import React, { useState } from 'react';
-import { View, Text, TouchableOpacity, ScrollView, StyleSheet } from 'react-native';
+import { View, Text, TouchableOpacity, ScrollView, StyleSheet, Platform } from 'react-native';
+import * as DocumentPicker from 'expo-document-picker';
 import Card from '../../components/Card';
 import Button from '../../components/Button';
 import Input from '../../components/Input';
@@ -53,29 +54,62 @@ export default function PrintScreen({ onPrintSubmitted }) {
   const activeSlot = printSlot || preferredSlot || suggestSlot(slotCapacity, orders, printOrders);
   const activeEmergency = printSlot ? printEmergency : (preferredSlot ? !!preferredSlotEmergency : false);
 
-  const handlePickDocument = () => {
-    // Add document file entry
-    const docId = nextId('F');
-    const mockFileNames = [
-      'Lab_Report_Assignment.pdf',
-      'Lecture_Notes_Unit3.pdf',
-      'Project_Presentation_Final.pdf',
-      'Seminar_Abstract.pdf'
-    ];
-    const fileName = mockFileNames[printFiles.length % mockFileNames.length];
-    const sizeBytes = Math.floor(Math.random() * 2000000) + 200000;
-    const pages = Math.floor(Math.random() * 12) + 2;
+  const handlePickDocument = async () => {
+    try {
+      if (Platform.OS === 'web' && typeof document !== 'undefined') {
+        const input = document.createElement('input');
+        input.type = 'file';
+        input.accept = 'application/pdf';
+        input.multiple = true;
+        input.onchange = (e) => {
+          const files = Array.from(e.target.files || []);
+          if (!files.length) return;
+          files.forEach(file => {
+            const pages = Math.max(1, Math.round(file.size / 51200));
+            const newFile = {
+              id: nextId('F'),
+              name: file.name,
+              sizeBytes: file.size,
+              pages: pages,
+              status: 'ready'
+            };
+            setPrintFiles(prev => [...prev, newFile]);
+            showToast(`Added ${file.name}`);
+          });
+        };
+        input.click();
+        return;
+      }
 
-    const newFile = {
-      id: docId,
-      name: fileName,
-      sizeBytes,
-      pages,
-      status: 'ready'
-    };
+      const result = await DocumentPicker.getDocumentAsync({
+        type: 'application/pdf',
+        multiple: true,
+        copyToCacheDirectory: true
+      });
 
-    setPrintFiles(prev => [...prev, newFile]);
-    showToast(`Added ${fileName}`);
+      if (result.canceled) {
+        return; // Handle cancellation gracefully
+      }
+
+      const assets = result.assets || (result.type === 'success' ? [result] : []);
+      if (!assets.length) return;
+
+      assets.forEach(asset => {
+        const size = asset.size || 50000;
+        const pages = Math.max(1, Math.round(size / 51200));
+        const newFile = {
+          id: nextId('F'),
+          name: asset.name || 'Document.pdf',
+          sizeBytes: size,
+          pages: pages,
+          status: 'ready'
+        };
+        setPrintFiles(prev => [...prev, newFile]);
+        showToast(`Added ${asset.name || 'Document.pdf'}`);
+      });
+    } catch (err) {
+      console.warn('File picker warning:', err);
+    }
   };
 
   const removeFile = (id) => {

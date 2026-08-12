@@ -8,7 +8,7 @@ import { money } from '../../utils/slotHelper';
 import { COLORS } from '../../theme/theme';
 
 export default function ProductsScreen({ onSelectProduct }) {
-  const { products, productFilter, setProductFilter, search, setSearch, addToCart } = useApp();
+  const { products, productFilter, setProductFilter, search, setSearch, addToCart, cart, changeCartQty } = useApp();
 
   const categories = ['All', ...new Set(products.map(p => p.category))];
 
@@ -23,6 +23,8 @@ export default function ProductsScreen({ onSelectProduct }) {
   const renderProductCard = (p) => {
     const low = p.stock > 0 && p.stock <= 5;
     const out = p.stock === 0;
+    const cartItem = cart.find(c => c.id === p.id);
+    const qtyInCart = cartItem ? cartItem.qty : 0;
 
     return (
       <TouchableOpacity
@@ -37,18 +39,60 @@ export default function ProductsScreen({ onSelectProduct }) {
         <View style={styles.midInfo}>
           <Text style={styles.prodName} numberOfLines={1}>{p.name}</Text>
           <Text style={styles.price}>{money(p.price)}</Text>
-          <Chip
-            label={out ? 'Out of Stock' : low ? `${p.stock} left` : 'In Stock'}
-            type={out ? 'outstock' : low ? 'pending' : 'instock'}
-          />
+          <View style={styles.badgeRow}>
+            <Chip
+              label={out ? 'Out of Stock' : low ? `${p.stock} left` : 'In Stock'}
+              type={out ? 'outstock' : low ? 'pending' : 'instock'}
+            />
+            {qtyInCart > 0 && (
+              <Chip
+                label={`🛒 In Cart: ${qtyInCart}`}
+                type="info"
+                style={{ marginLeft: 6 }}
+              />
+            )}
+          </View>
         </View>
-        <TouchableOpacity
-          disabled={out}
-          style={[styles.addBtn, out && styles.disabledAddBtn]}
-          onPress={() => addToCart(p.id)}
-        >
-          <Icon name="plus" size={16} color="#FFF" />
-        </TouchableOpacity>
+        {out ? (
+          <TouchableOpacity
+            disabled
+            style={[styles.addBtn, styles.disabledAddBtn]}
+          >
+            <Icon name="plus" size={16} color="#FFF" />
+          </TouchableOpacity>
+        ) : qtyInCart > 0 ? (
+          <View style={styles.qtyControlRow}>
+            <TouchableOpacity
+              style={styles.qtyBtn}
+              onPress={(e) => {
+                e.stopPropagation();
+                changeCartQty(p.id, -1);
+              }}
+            >
+              <Text style={styles.qtyBtnText}>−</Text>
+            </TouchableOpacity>
+            <Text style={styles.qtyNum}>{qtyInCart}</Text>
+            <TouchableOpacity
+              style={styles.qtyBtn}
+              onPress={(e) => {
+                e.stopPropagation();
+                addToCart(p.id);
+              }}
+            >
+              <Text style={styles.qtyBtnText}>+</Text>
+            </TouchableOpacity>
+          </View>
+        ) : (
+          <TouchableOpacity
+            style={styles.addBtn}
+            onPress={(e) => {
+              e.stopPropagation();
+              addToCart(p.id);
+            }}
+          >
+            <Icon name="plus" size={16} color="#FFF" />
+          </TouchableOpacity>
+        )}
       </TouchableOpacity>
     );
   };
@@ -200,5 +244,36 @@ const styles = StyleSheet.create({
   emptyTitle: {
     fontWeight: '600',
     color: COLORS.text,
+  },
+  badgeRow: {
+    flexDirection: 'row',
+    alignItems: 'center',
+    flexWrap: 'wrap',
+  },
+  qtyControlRow: {
+    flexDirection: 'row',
+    alignItems: 'center',
+    backgroundColor: COLORS.primaryLight,
+    borderRadius: 10,
+    padding: 3,
+  },
+  qtyBtn: {
+    width: 26,
+    height: 26,
+    borderRadius: 7,
+    backgroundColor: COLORS.primary,
+    alignItems: 'center',
+    justifyContent: 'center',
+  },
+  qtyBtnText: {
+    color: '#FFF',
+    fontWeight: '700',
+    fontSize: 14,
+  },
+  qtyNum: {
+    paddingHorizontal: 8,
+    fontSize: 13,
+    fontWeight: '700',
+    color: COLORS.primaryDark,
   }
 });

@@ -1,5 +1,6 @@
 import React, { useState } from 'react';
-import { View, Text, TouchableOpacity, ScrollView, StyleSheet } from 'react-native';
+import { View, Text, TouchableOpacity, ScrollView, StyleSheet, Platform } from 'react-native';
+import * as DocumentPicker from 'expo-document-picker';
 import Card from '../../components/Card';
 import Button from '../../components/Button';
 import Input from '../../components/Input';
@@ -56,23 +57,32 @@ export default function InventoryScreen() {
   };
 
   const handleSaveEdit = (id) => {
+    const newP = parseFloat(editPrice);
+    const newS = parseInt(editStock, 10);
+
+    if (editPrice.trim() === '' || isNaN(newP) || newP < 0) {
+      showToast('Please enter a valid non-negative price');
+      return;
+    }
+
+    if (editStock.trim() === '' || isNaN(newS) || newS < 0) {
+      showToast('Please enter a valid non-negative stock quantity');
+      return;
+    }
+
     setProducts(prev => prev.map(p => {
       if (p.id === id) {
         const prevStock = p.stock;
-        const newP = parseFloat(editPrice);
-        const newS = parseInt(editStock, 10);
-        const updatedPrice = !isNaN(newP) ? newP : p.price;
-        const updatedStock = !isNaN(newS) ? newS : p.stock;
 
-        if (prevStock === 0 && updatedStock > 0 && p.waitlist && p.waitlist.length) {
+        if (prevStock === 0 && newS > 0 && p.waitlist && p.waitlist.length) {
           pushNotification(`Good news! ${p.name} is back in stock`, '🔔');
         }
 
         return {
           ...p,
-          price: updatedPrice,
-          stock: updatedStock,
-          waitlist: prevStock === 0 && updatedStock > 0 ? [] : p.waitlist
+          price: newP,
+          stock: newS,
+          waitlist: prevStock === 0 && newS > 0 ? [] : p.waitlist
         };
       }
       return p;
@@ -87,26 +97,108 @@ export default function InventoryScreen() {
   };
 
   const handleExportCSV = () => {
-    const csvContent = generateInventoryCSV(products);
-    showToast('Inventory exported (simulated)');
+    try {
+      const csvContent = generateInventoryCSV(products);
+      if (Platform.OS === 'web' && typeof document !== 'undefined') {
+        const blob = new Blob([csvContent], { type: 'text/csv;charset=utf-8;' });
+        const url = URL.createObjectURL(blob);
+        const link = document.createElement('a');
+        link.setAttribute('href', url);
+        link.setAttribute('download', 'flashq-inventory.csv');
+        document.body.appendChild(link);
+        link.click();
+        document.body.removeChild(link);
+        URL.revokeObjectURL(url);
+        showToast('Inventory exported successfully');
+      } else {
+        showToast('CSV generated successfully');
+      }
+    } catch (err) {
+      showToast('Error exporting CSV');
+    }
   };
 
-  const handleImportCSV = () => {
-    // Mock import
-    const mockCsv = `"Name","Category","Price","Stock"\n"A4 Spiral Binder","Notebooks","120","15"\n"Gel Pen Red","Pens","15","50"`;
-    const items = parseInventoryCSV(mockCsv);
-    let added = 0, updated = 0;
-    items.forEach(item => {
-      const existing = products.find(p => p.name.toLowerCase() === item.name.toLowerCase());
-      if (existing) {
-        setProducts(prev => prev.map(p => p.id === existing.id ? { ...p, price: item.price, stock: item.stock } : p));
-        updated++;
-      } else {
-        setProducts(prev => [...prev, { ...item, id: nextId('p'), waitlist: [] }]);
-        added++;
-      }
+  const processCSVText = (text) => {
+    if (!text || !text.trim()) {
+      showToast('Selected file is empty');
+      return;
+    }
+    const items = parseInventoryCSV(text);
+    if (!items || items.length === 0) {
+      showToast('No valid product rows found in CSV');
+      return;
+    }
+
+    setProducts(prevProducts => {
+      let added = 0;
+      let updated = 0;
+      let updatedList = [...prevProducts];
+
+      items.forEach(item => {
+        const existingIndex = updatedList.findIndex(
+          p => p.name.trim().toLowerCase() === item.name.trim().toLowerCase()
+        );
+        if (existingIndex !== -1) {
+          updatedList[existingIndex] = {
+            ...updatedList[existingIndex],
+            category: item.category || updatedList[existingIndex].category,
+            price: item.price,
+            stock: item.stock
+          };
+          updated++;
+        } else {
+          updatedList.push({
+            id: nextId('p'),
+            name: item.name,
+            category: item.category || 'Stationery',
+            price: item.price,
+            stock: item.stock,
+            icon: item.icon || '🗂️',
+            waitlist: []
+          });
+          added++;
+        }
+      });
+      showToast(`Imported: ${added} added, ${updated} updated`);
+      return updatedList;
     });
-    showToast(`Imported: ${added} added, ${updated} updated`);
+  };
+
+  const handleImportCSV = async () => {
+    try {
+      if (Platform.OS === 'web' && typeof document !== 'undefined') {
+        const input = document.createElement('input');
+        input.type = 'file';
+        input.accept = '.csv,text/csv,text/comma-separated-values';
+        input.onchange = (e) => {
+          const file = e.target.files && e.target.files[0];
+          if (!file) return;
+          const reader = new FileReader();
+          reader.onload = (event) => {
+            processCSVText(event.target.result);
+          };
+          reader.onerror = () => showToast('Could not read CSV file');
+          reader.readAsText(file);
+        };
+        input.click();
+        return;
+      }
+
+      const result = await DocumentPicker.getDocumentAsync({
+        type: ['text/csv', 'text/comma-separated-values', '*/*'],
+        copyToCacheDirectory: true
+      });
+
+      if (result.canceled) return;
+      const asset = result.assets ? result.assets[0] : result;
+      if (asset && asset.uri) {
+        const response = await fetch(asset.uri);
+        const text = await response.text();
+        processCSVText(text);
+      }
+    } catch (err) {
+      showToast('Error opening CSV file');
+    }
   };
 
   return (

@@ -34,9 +34,23 @@ export function suggestSlot(capacity = 6, orders = [], printOrders = []) {
 }
 
 export function timeStringToDateToday(hhmm) {
-  const parts = hhmm.split(':');
+  if (!hhmm) return new Date();
+  const trimmed = String(hhmm).trim().toUpperCase();
+  const isPM = trimmed.includes('PM');
+  const isAM = trimmed.includes('AM');
+  const cleanStr = trimmed.replace('AM', '').replace('PM', '').trim();
+  const parts = cleanStr.split(':');
+  
+  let hours = parseInt(parts[0], 10);
+  let minutes = parts[1] ? parseInt(parts[1], 10) : 0;
+  if (isNaN(hours)) hours = new Date().getHours();
+  if (isNaN(minutes)) minutes = 0;
+
+  if (isPM && hours < 12) hours += 12;
+  if (isAM && hours === 12) hours = 0;
+
   const d = new Date();
-  d.setHours(parseInt(parts[0], 10), parseInt(parts[1], 10), 0, 0);
+  d.setHours(hours, minutes, 0, 0);
   return d;
 }
 

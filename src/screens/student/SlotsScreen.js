@@ -1,11 +1,12 @@
-import React from 'react';
-import { View, Text, ScrollView, StyleSheet } from 'react-native';
+import React, { useState } from 'react';
+import { View, Text, TouchableOpacity, ScrollView, StyleSheet } from 'react-native';
 import Card from '../../components/Card';
 import Button from '../../components/Button';
+import Input from '../../components/Input';
 import Chip from '../../components/Chip';
 import Icon from '../../components/Icons';
 import { useApp } from '../../context/AppContext';
-import { generateSlots, suggestSlot } from '../../utils/slotHelper';
+import { generateSlots, generateSlotsAround, suggestSlot, timeStringToDateToday } from '../../utils/slotHelper';
 import { COLORS } from '../../theme/theme';
 
 export default function SlotsScreen() {
@@ -18,13 +19,32 @@ export default function SlotsScreen() {
     showToast
   } = useApp();
 
-  const slots = generateSlots(8, slotCapacity, orders, printOrders);
+  const [prefTimeInput, setPrefTimeInput] = useState('');
+  const [customSlots, setCustomSlots] = useState(null);
+
+  const defaultSlots = generateSlots(8, slotCapacity, orders, printOrders);
+  const slots = customSlots || defaultSlots;
   const suggested = suggestSlot(slotCapacity, orders, printOrders);
 
   const handleSelect = (label, wasFull) => {
     setPreferredSlot(label);
     setPreferredSlotEmergency(!!wasFull);
     showToast(wasFull ? 'Emergency slot saved — 25% surcharge will apply' : "Slot saved — we'll use it at your next checkout");
+  };
+
+  const handleFindNearby = () => {
+    if (!prefTimeInput.trim()) {
+      showToast('Enter your preferred time (e.g. 16:00 or 4:00 PM)');
+      return;
+    }
+    const centerDate = timeStringToDateToday(prefTimeInput);
+    const nearby = generateSlotsAround(centerDate, 7, slotCapacity, orders, printOrders);
+    if (centerDate.getTime() < Date.now()) {
+      showToast('That time has passed — showing nearest upcoming slots');
+    } else {
+      showToast(`Showing slots around ${prefTimeInput}`);
+    }
+    setCustomSlots(nearby);
   };
 
   return (
@@ -40,6 +60,34 @@ export default function SlotsScreen() {
           <Text style={styles.bannerText}>
             We've suggested the best available slot for you — 10-minute windows, updated live.
           </Text>
+        </Card>
+
+        {/* Preferred Time Search Card */}
+        <Card style={{ marginBottom: 14 }}>
+          <Text style={styles.eyebrow}>Preferred Pickup Time</Text>
+          <Text style={styles.subHint}>Enter a time to see closest available pickup slots:</Text>
+          <View style={styles.prefSearchRow}>
+            <View style={{ flex: 1 }}>
+              <Input
+                placeholder="e.g. 16:00 or 4:00 PM"
+                value={prefTimeInput}
+                onChangeText={setPrefTimeInput}
+                style={{ marginBottom: 0 }}
+              />
+            </View>
+            <Button
+              title="Find Nearby"
+              variant="primary"
+              small
+              onPress={handleFindNearby}
+              style={{ marginLeft: 8 }}
+            />
+          </View>
+          {customSlots && (
+            <TouchableOpacity onPress={() => { setCustomSlots(null); setPrefTimeInput(''); }} style={{ alignSelf: 'flex-end', marginTop: 8 }}>
+              <Text style={styles.linkText}>Reset to default slots</Text>
+            </TouchableOpacity>
+          )}
         </Card>
 
         {slots.map(sl => {
@@ -139,5 +187,19 @@ const styles = StyleSheet.create({
     color: COLORS.muted,
     textAlign: 'center',
     marginTop: 8,
+  },
+  subHint: {
+    fontSize: 12,
+    color: COLORS.muted,
+    marginBottom: 8,
+  },
+  prefSearchRow: {
+    flexDirection: 'row',
+    alignItems: 'center',
+  },
+  linkText: {
+    color: COLORS.primary,
+    fontSize: 12,
+    fontWeight: '600',
   }
 });

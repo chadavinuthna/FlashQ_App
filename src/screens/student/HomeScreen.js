@@ -32,10 +32,33 @@ export default function HomeScreen({ onNavigate }) {
       <View style={styles.topline}>
         <Text style={styles.eyebrow}>Welcome back</Text>
         <Text style={styles.h1}>{studentRoll} 👋</Text>
-        <Text style={styles.sub}>What would you like to do today?</Text>
-      </View>
-
       <View style={styles.screenpad}>
+        {/* Prominent Store Status Banner */}
+        <Card
+          style={[
+            styles.storeStatusBanner,
+            storeOpen ? styles.storeStatusOpenCard : styles.storeStatusClosedCard
+          ]}
+        >
+          <View style={styles.storeStatusLeft}>
+            <View style={[styles.storeDot, storeOpen ? styles.storeDotOpen : styles.storeDotClosed]} />
+            <View style={{ flex: 1 }}>
+              <Text style={styles.storeStatusTitle}>
+                {storeOpen ? 'Store Open' : 'Store Closed'}
+              </Text>
+              <Text style={styles.storeStatusSub}>
+                {storeOpen
+                  ? 'Accepting stationery orders & print submissions'
+                  : 'New orders & print requests are currently paused'}
+              </Text>
+            </View>
+          </View>
+          <Chip
+            label={storeOpen ? 'Open Now' : 'Closed'}
+            type={storeOpen ? 'instock' : 'outstock'}
+          />
+        </Card>
+
         <View style={styles.grid2}>
           {homeTile('box', 'Browse Items', 'products')}
           {homeTile('heart', 'Wishlist', 'wishlist')}
@@ -204,5 +227,48 @@ const styles = StyleSheet.create({
     fontSize: 12,
     color: COLORS.muted,
     marginTop: 2,
+  },
+  storeStatusBanner: {
+    flexDirection: 'row',
+    alignItems: 'center',
+    justifyContent: 'space-between',
+    marginBottom: 14,
+    paddingVertical: 14,
+    paddingHorizontal: 16,
+  },
+  storeStatusOpenCard: {
+    borderColor: COLORS.success,
+    backgroundColor: COLORS.successBg,
+  },
+  storeStatusClosedCard: {
+    borderColor: COLORS.error,
+    backgroundColor: COLORS.errorBg,
+  },
+  storeStatusLeft: {
+    flexDirection: 'row',
+    alignItems: 'center',
+    gap: 10,
+    flex: 1,
+  },
+  storeDot: {
+    width: 10,
+    height: 10,
+    borderRadius: 5,
+  },
+  storeDotOpen: {
+    backgroundColor: COLORS.success,
+  },
+  storeDotClosed: {
+    backgroundColor: COLORS.error,
+  },
+  storeStatusTitle: {
+    fontWeight: '700',
+    fontSize: 13.5,
+    color: COLORS.text,
+  },
+  storeStatusSub: {
+    fontSize: 11,
+    color: COLORS.muted,
+    marginTop: 1,
   }
 });

@@ -11,7 +11,7 @@ import { COLORS } from '../../theme/theme';
 
 export default function ProductDetailScreen({ productId, onBack }) {
   const { studentRoll } = useAuth();
-  const { products, addToCart, toggleWaitlist } = useApp();
+  const { products, addToCart, changeCartQty, cart, toggleWaitlist } = useApp();
 
   const p = products.find(x => x.id === productId);
 
@@ -29,6 +29,8 @@ export default function ProductDetailScreen({ productId, onBack }) {
 
   const out = p.stock === 0;
   const onWaitlist = p.waitlist && p.waitlist.includes(studentRoll);
+  const cartItem = cart.find(c => c.id === p.id);
+  const qtyInCart = cartItem ? cartItem.qty : 0;
 
   return (
     <ScrollView contentContainerStyle={styles.container}>
@@ -44,18 +46,49 @@ export default function ProductDetailScreen({ productId, onBack }) {
         <Text style={styles.eyebrow}>{p.category}</Text>
         <Text style={styles.h1}>{p.name}</Text>
         <Text style={styles.price}>{money(p.price)}</Text>
-        <Chip
-          label={out ? 'Out of Stock' : `${p.stock} in stock`}
-          type={out ? 'outstock' : 'instock'}
-        />
+        <View style={{ flexDirection: 'row', alignItems: 'center', flexWrap: 'wrap', gap: 6 }}>
+          <Chip
+            label={out ? 'Out of Stock' : `${p.stock} in stock`}
+            type={out ? 'outstock' : 'instock'}
+          />
+          {qtyInCart > 0 && (
+            <Chip
+              label={`🛒 In Cart: ${qtyInCart}`}
+              type="info"
+            />
+          )}
+        </View>
 
-        <Button
-          title={out ? 'Out of Stock' : 'Add to Cart'}
-          variant={out ? 'outline' : 'primary'}
-          disabled={out}
-          style={{ marginTop: 16 }}
-          onPress={() => addToCart(p.id)}
-        />
+        {!out && qtyInCart > 0 ? (
+          <View style={{ marginTop: 16 }}>
+            <View style={styles.detailQtyRow}>
+              <Text style={styles.detailQtyLabel}>Quantity in Cart:</Text>
+              <View style={styles.detailQtyControls}>
+                <TouchableOpacity
+                  style={styles.detailQtyBtn}
+                  onPress={() => changeCartQty(p.id, -1)}
+                >
+                  <Text style={styles.detailQtyBtnText}>−</Text>
+                </TouchableOpacity>
+                <Text style={styles.detailQtyNum}>{qtyInCart}</Text>
+                <TouchableOpacity
+                  style={styles.detailQtyBtn}
+                  onPress={() => addToCart(p.id)}
+                >
+                  <Text style={styles.detailQtyBtnText}>+</Text>
+                </TouchableOpacity>
+              </View>
+            </View>
+          </View>
+        ) : (
+          <Button
+            title={out ? 'Out of Stock' : 'Add to Cart'}
+            variant={out ? 'outline' : 'primary'}
+            disabled={out}
+            style={{ marginTop: 16 }}
+            onPress={() => addToCart(p.id)}
+          />
+        )}
 
         {out && (
           <Button
@@ -120,5 +153,41 @@ const styles = StyleSheet.create({
     color: COLORS.muted,
     textAlign: 'center',
     marginTop: 40,
+  },
+  detailQtyRow: {
+    flexDirection: 'row',
+    alignItems: 'center',
+    justifyContent: 'space-between',
+    backgroundColor: COLORS.primaryLight,
+    padding: 12,
+    borderRadius: 12,
+  },
+  detailQtyLabel: {
+    fontSize: 13,
+    fontWeight: '600',
+    color: COLORS.primaryDark,
+  },
+  detailQtyControls: {
+    flexDirection: 'row',
+    alignItems: 'center',
+  },
+  detailQtyBtn: {
+    width: 32,
+    height: 32,
+    borderRadius: 8,
+    backgroundColor: COLORS.primary,
+    alignItems: 'center',
+    justifyContent: 'center',
+  },
+  detailQtyBtnText: {
+    color: '#FFF',
+    fontWeight: '700',
+    fontSize: 16,
+  },
+  detailQtyNum: {
+    paddingHorizontal: 12,
+    fontSize: 15,
+    fontWeight: '700',
+    color: COLORS.primaryDark,
   }
 });

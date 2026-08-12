@@ -18,25 +18,33 @@ export default function SettingsScreen({ onBackToDashboard }) {
     showToast
   } = useApp();
 
+  const [capacityText, setCapacityText] = React.useState(String(slotCapacity));
+  const [bwText, setBwText] = React.useState(String(printPricing.bw));
+  const [colorText, setColorText] = React.useState(String(printPricing.color));
+
   const toggleStore = () => {
     setStoreOpen(!storeOpen);
     showToast(!storeOpen ? 'Store marked Open' : 'Store marked Closed');
   };
 
-  const handleCapacityChange = (val) => {
-    const num = parseInt(val, 10);
-    if (!isNaN(num) && num > 0) {
-      setSlotCapacity(num);
-      showToast('Slot capacity updated');
+  const handleSaveSettings = () => {
+    const capNum = parseInt(capacityText, 10);
+    if (isNaN(capNum) || capNum <= 0) {
+      showToast('Please enter a valid capacity (minimum 1)');
+      return;
     }
-  };
 
-  const handlePricingChange = (kind, val) => {
-    const num = parseFloat(val);
-    if (!isNaN(num) && num >= 0) {
-      setPrintPricing(prev => ({ ...prev, [kind]: num }));
-      showToast('Pricing updated');
+    const bwNum = parseFloat(bwText);
+    const colorNum = parseFloat(colorText);
+
+    if (isNaN(bwNum) || bwNum < 0 || isNaN(colorNum) || colorNum < 0) {
+      showToast('Please enter valid non-negative pricing values');
+      return;
     }
+
+    setSlotCapacity(capNum);
+    setPrintPricing({ bw: bwNum, color: colorNum });
+    showToast('Settings saved successfully');
   };
 
   return (
@@ -67,8 +75,8 @@ export default function SettingsScreen({ onBackToDashboard }) {
         <Card>
           <Input
             label="Pickup Slot Capacity (per 10-min slot)"
-            value={String(slotCapacity)}
-            onChangeText={handleCapacityChange}
+            value={capacityText}
+            onChangeText={setCapacityText}
             keyboardType="numeric"
           />
         </Card>
@@ -76,17 +84,24 @@ export default function SettingsScreen({ onBackToDashboard }) {
         <Card>
           <Input
             label="Print Pricing — B/W per page (₹)"
-            value={String(printPricing.bw)}
-            onChangeText={(val) => handlePricingChange('bw', val)}
+            value={bwText}
+            onChangeText={setBwText}
             keyboardType="numeric"
           />
           <Input
             label="Print Pricing — Color per page (₹)"
-            value={String(printPricing.color)}
-            onChangeText={(val) => handlePricingChange('color', val)}
+            value={colorText}
+            onChangeText={setColorText}
             keyboardType="numeric"
           />
         </Card>
+
+        <Button
+          title="Save Settings"
+          variant="primary"
+          onPress={handleSaveSettings}
+          style={{ marginBottom: 10 }}
+        />
 
         <Button
           title="Back to Dashboard"

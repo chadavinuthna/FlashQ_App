@@ -1,5 +1,5 @@
 import React, { useState } from 'react';
-import { View, Text, TouchableOpacity, ScrollView, StyleSheet } from 'react-native';
+import { View, Text, TouchableOpacity, ScrollView, StyleSheet, Modal } from 'react-native';
 import Card from '../../components/Card';
 import Button from '../../components/Button';
 import Chip from '../../components/Chip';
@@ -10,8 +10,9 @@ import { COLORS } from '../../theme/theme';
 export default function AdminOrdersScreen({ onSelectOrder }) {
   const { orders, setOrders, pushNotification, showToast } = useApp();
   const [selectedOrders, setSelectedOrders] = useState([]);
+  const [showConfirmModal, setShowConfirmModal] = useState(false);
 
-  const activeIds = orders.filter(o => o.status !== 'Collected' && o.status !== 'Cancelled').map(o => o.id);
+  const activeIds = orders.filter(o => o.status !== 'Collected' && o.status !== 'Cancelled' && o.status !== 'Not Collected').map(o => o.id);
   const allSelected = activeIds.length > 0 && activeIds.every(id => selectedOrders.includes(id));
 
   const toggleSelect = (id) => {
@@ -25,13 +26,27 @@ export default function AdminOrdersScreen({ onSelectOrder }) {
   const selectAll = () => setSelectedOrders(activeIds);
   const clearSelection = () => setSelectedOrders([]);
 
-  const bulkAdvance = () => {
-    const steps = ['Accepted', 'Preparing', 'Ready For Pickup', 'Collected'];
+  const steps = ['Accepted', 'Preparing', 'Ready For Pickup', 'Collected'];
+  const getNextStatus = (currentStatus) => {
+    const idx = steps.indexOf(currentStatus);
+    return idx >= 0 && idx < steps.length - 1 ? steps[idx + 1] : null;
+  };
+
+  const selectedItems = orders.filter(o => selectedOrders.includes(o.id));
+  const breakdown = {};
+  selectedItems.forEach(o => {
+    const next = getNextStatus(o.status);
+    if (next) {
+      breakdown[next] = (breakdown[next] || 0) + 1;
+    }
+  });
+  const breakdownEntries = Object.entries(breakdown);
+
+  const handleConfirmBulkAdvance = () => {
     let count = 0;
     setOrders(prev => prev.map(o => {
-      if (selectedOrders.includes(o.id) && o.status !== 'Collected' && o.status !== 'Cancelled') {
-        const idx = steps.indexOf(o.status);
-        const next = steps[idx + 1];
+      if (selectedOrders.includes(o.id)) {
+        const next = getNextStatus(o.status);
         if (next) {
           count++;
           if (next === 'Ready For Pickup') {
@@ -43,7 +58,8 @@ export default function AdminOrdersScreen({ onSelectOrder }) {
       return o;
     }));
     setSelectedOrders([]);
-    showToast(`${count} order(s) advanced`);
+    setShowConfirmModal(false);
+    showToast(`${count} order(s) updated`);
   };
 
   return (
@@ -68,13 +84,13 @@ export default function AdminOrdersScreen({ onSelectOrder }) {
         {selectedOrders.length > 0 && (
           <Card tint style={styles.bulkCard}>
             <Text style={styles.subText}>{selectedOrders.length} order(s) selected</Text>
-            <Button title="Advance Selected →" variant="success" small onPress={bulkAdvance} />
+            <Button title="Advance Selected" variant="success" small onPress={() => setShowConfirmModal(true)} />
           </Card>
         )}
 
         {orders.length ? (
           orders.map(o => {
-            const canSelect = o.status !== 'Collected' && o.status !== 'Cancelled';
+            const canSelect = o.status !== 'Collected' && o.status !== 'Cancelled' && o.status !== 'Not Collected';
             const isSelected = selectedOrders.includes(o.id);
             return (
               <TouchableOpacity
@@ -101,7 +117,7 @@ export default function AdminOrdersScreen({ onSelectOrder }) {
                   </View>
                   <Chip
                     label={o.status}
-                    type={o.status === 'Collected' ? 'success' : o.status === 'Cancelled' ? 'error' : 'pending'}
+                    type={o.status === 'Collected' ? 'success' : (o.status === 'Cancelled' || o.status === 'Not Collected') ? 'error' : 'pending'}
                   />
                 </Card>
               </TouchableOpacity>
@@ -115,6 +131,42 @@ export default function AdminOrdersScreen({ onSelectOrder }) {
           </View>
         )}
       </View>
+
+      {/* Bulk Advance Confirmation Modal */}
+      <Modal
+        visible={showConfirmModal}
+        animationType="fade"
+        transparent={true}
+        onRequestClose={() => setShowConfirmModal(false)}
+      >
+        <View style={styles.modalOverlay}>
+          <View style={styles.modalContent}>
+            <Text style={styles.modalHeading}>
+              Advance {selectedOrders.length} selected {selectedOrders.length === 1 ? 'order' : 'orders'}?
+            </Text>
+            <Text style={styles.modalSubheading}>
+              Resulting status breakdown:
+            </Text>
+            <View style={styles.breakdownBox}>
+              {breakdownEntries.length > 0 ? (
+                breakdownEntries.map(([nextStatus, count]) => (
+                  <View key={nextStatus} style={styles.breakdownRow}>
+                    <Text style={styles.breakdownText}>
+                      • {count} {count === 1 ? 'order' : 'orders'} → <Text style={{ fontWeight: '700' }}>{nextStatus}</Text>
+                    </Text>
+                  </View>
+                ))
+              ) : (
+                <Text style={styles.subText}>No eligible orders to advance.</Text>
+              )}
+            </View>
+            <View style={{ flexDirection: 'row', gap: 10, marginTop: 14 }}>
+              <Button title="Cancel" variant="outline" onPress={() => setShowConfirmModal(false)} style={{ flex: 1 }} />
+              <Button title="Confirm Advance" variant="success" onPress={handleConfirmBulkAdvance} style={{ flex: 1 }} />
+            </View>
+          </View>
+        </View>
+      </Modal>
     </ScrollView>
   );
 }
@@ -212,5 +264,46 @@ const styles = StyleSheet.create({
     color: COLORS.muted,
     textAlign: 'center',
     marginTop: 4,
+  },
+  modalOverlay: {
+    flex: 1,
+    backgroundColor: 'rgba(0,0,0,0.5)',
+    justifyContent: 'center',
+    alignItems: 'center',
+    padding: 20,
+  },
+  modalContent: {
+    width: '100%',
+    maxWidth: 420,
+    backgroundColor: COLORS.card,
+    borderRadius: 18,
+    padding: 20,
+    borderWidth: 1,
+    borderColor: COLORS.line,
+  },
+  modalHeading: {
+    fontSize: 16,
+    fontWeight: '700',
+    color: COLORS.primaryDark,
+    marginBottom: 6,
+  },
+  modalSubheading: {
+    fontSize: 12.5,
+    color: COLORS.muted,
+    marginBottom: 10,
+  },
+  breakdownBox: {
+    backgroundColor: COLORS.bg,
+    borderRadius: 12,
+    padding: 12,
+    borderWidth: 1,
+    borderColor: COLORS.line,
+  },
+  breakdownRow: {
+    paddingVertical: 3,
+  },
+  breakdownText: {
+    fontSize: 13,
+    color: COLORS.text,
   }
 });

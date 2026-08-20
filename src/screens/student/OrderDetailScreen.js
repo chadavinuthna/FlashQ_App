@@ -5,7 +5,7 @@ import Button from '../../components/Button';
 import Chip from '../../components/Chip';
 import Icon from '../../components/Icons';
 import { useApp } from '../../context/AppContext';
-import { money } from '../../utils/slotHelper';
+import { money, isPickupCutoffPassed } from '../../utils/slotHelper';
 import { COLORS } from '../../theme/theme';
 
 export default function OrderDetailScreen({ orderKind, orderId, onBack }) {
@@ -45,7 +45,9 @@ export default function OrderDetailScreen({ orderKind, orderId, onBack }) {
   const steps = isPrint ? printSteps : stationerySteps;
   const curIdx = steps.indexOf(o.status);
 
-  const canEdit = o.status !== 'Cancelled' && (isPrint ? o.status === 'Placed' : o.status === 'Accepted');
+  const cutoffPassed = isPickupCutoffPassed(o.slot);
+  const isTerminalState = o.status === 'Cancelled' || o.status === 'Collected' || o.status === 'Not Collected';
+  const canEdit = !isTerminalState && !cutoffPassed && (isPrint ? o.status === 'Placed' : o.status === 'Accepted');
 
   const editOrderItemQty = (itemId, delta) => {
     setOrders(prev => prev.map(order => {
@@ -239,6 +241,14 @@ export default function OrderDetailScreen({ orderKind, orderId, onBack }) {
             })}
           </View>
         </Card>
+      )}
+
+      {cutoffPassed && !isTerminalState && (
+        <View style={styles.closedNotice}>
+          <Text style={styles.closedText}>
+            🔒 Editing locked — cutoff time (5 minutes before scheduled pickup slot {o.slot}) has passed.
+          </Text>
+        </View>
       )}
 
       {canEdit && (

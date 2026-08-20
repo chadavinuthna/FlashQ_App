@@ -9,7 +9,8 @@ import { COLORS } from '../../theme/theme';
 export default function AnalyticsScreen() {
   const { orders, printOrders } = useApp();
 
-  const totalSales = orders.reduce((s, o) => s + o.total, 0) + printOrders.reduce((s, o) => s + o.cost, 0);
+  const totalSales = orders.filter(o => o.status === 'Collected').reduce((s, o) => s + o.total, 0) +
+                     printOrders.filter(o => o.status === 'Collected').reduce((s, o) => s + o.cost, 0);
 
   const salesByProduct = {};
   orders.forEach(o => o.items.forEach(i => {

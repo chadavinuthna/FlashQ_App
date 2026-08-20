@@ -14,10 +14,11 @@ export default function AdminDashboardScreen({ onNavigate }) {
   const { storeOpen, setStoreOpen, products, orders, printOrders, showToast } = useApp();
 
   const todayOrders = orders.length;
-  const printReq = printOrders.filter(o => o.status !== 'Collected').length;
-  const revenue = orders.reduce((s, o) => s + o.total, 0) + printOrders.reduce((s, o) => s + o.cost, 0);
+  const printReq = printOrders.filter(o => o.status !== 'Collected' && o.status !== 'Not Collected').length;
+  const revenue = orders.filter(o => o.status === 'Collected').reduce((s, o) => s + o.total, 0) +
+                  printOrders.filter(o => o.status === 'Collected').reduce((s, o) => s + o.cost, 0);
   const lowStockItems = products.filter(p => p.stock <= 5);
-  const pendingPrints = printOrders.filter(o => o.status !== 'Collected');
+  const pendingPrints = printOrders.filter(o => o.status !== 'Collected' && o.status !== 'Not Collected');
 
   const toggleStore = () => {
     setStoreOpen(!storeOpen);

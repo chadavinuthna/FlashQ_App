@@ -100,14 +100,49 @@ export default function PrintDetailScreen({ printId, onBack }) {
 
       {o.status === 'Cancelled' ? (
         <Text style={styles.subText}>This print job was cancelled by the student.</Text>
-      ) : nextStep ? (
-        <Button
-          title={`Mark as ${nextStep}`}
-          variant="success"
-          onPress={() => advancePrint(nextStep)}
-        />
       ) : (
-        <Text style={styles.subText}>Collected.</Text>
+        <View>
+          {nextStep && o.status !== 'Collected' && o.status !== 'Not Collected' && (
+            <Button
+              title={`Mark as ${nextStep}`}
+              variant="success"
+              onPress={() => advancePrint(nextStep)}
+              style={{ marginBottom: 10 }}
+            />
+          )}
+
+          {o.status === 'Ready' && (
+            <Button
+              title="Mark as Not Collected"
+              variant="danger"
+              onPress={() => advancePrint('Not Collected')}
+            />
+          )}
+
+          {o.status === 'Collected' && (
+            <View>
+              <Text style={styles.subText}>Print job collected (Counts toward revenue).</Text>
+              <Button
+                title="Change status to Not Collected"
+                variant="outline"
+                onPress={() => advancePrint('Not Collected')}
+                style={{ marginTop: 10 }}
+              />
+            </View>
+          )}
+
+          {o.status === 'Not Collected' && (
+            <View>
+              <Text style={styles.subText}>Print job not collected (Excluded from revenue).</Text>
+              <Button
+                title="Mark as Collected"
+                variant="success"
+                onPress={() => advancePrint('Collected')}
+                style={{ marginTop: 10 }}
+              />
+            </View>
+          )}
+        </View>
       )}
     </ScrollView>
   );

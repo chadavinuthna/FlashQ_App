@@ -87,3 +87,10 @@ export function nowStr() {
   const d = new Date();
   return d.toLocaleTimeString([], { hour: '2-digit', minute: '2-digit' });
 }
+
+export function isPickupCutoffPassed(slotLabel) {
+  if (!slotLabel) return false;
+  const pickupDate = timeStringToDateToday(slotLabel);
+  const cutoffTime = pickupDate.getTime() - 5 * 60 * 1000;
+  return Date.now() >= cutoffTime;
+}

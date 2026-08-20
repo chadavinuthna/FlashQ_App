@@ -1,5 +1,5 @@
 import React, { useState } from 'react';
-import { View, Text, TouchableOpacity, ScrollView, StyleSheet, Platform } from 'react-native';
+import { View, Text, TouchableOpacity, ScrollView, StyleSheet, Platform, Modal, SafeAreaView } from 'react-native';
 import * as DocumentPicker from 'expo-document-picker';
 import Card from '../../components/Card';
 import Button from '../../components/Button';
@@ -8,6 +8,7 @@ import SlotPicker from '../../components/SlotPicker';
 import Icon from '../../components/Icons';
 import { useAuth } from '../../context/AuthContext';
 import { useApp } from '../../context/AppContext';
+import { getExactPageCountFromFile } from '../../utils/pdfHelper';
 import {
   suggestSlot,
   generateSlots,
@@ -50,6 +51,7 @@ export default function PrintScreen({ onPrintSubmitted }) {
   const [slotPickerOpen, setSlotPickerOpen] = useState(false);
   const [customSlots, setCustomSlots] = useState(null);
   const [prefTime, setPrefTime] = useState('');
+  const [previewingFile, setPreviewingFile] = useState(null);
 
   const activeSlot = printSlot || preferredSlot || suggestSlot(slotCapacity, orders, printOrders);
   const activeEmergency = printSlot ? printEmergency : (preferredSlot ? !!preferredSlotEmergency : false);
@@ -64,17 +66,20 @@ export default function PrintScreen({ onPrintSubmitted }) {
         input.onchange = (e) => {
           const files = Array.from(e.target.files || []);
           if (!files.length) return;
-          files.forEach(file => {
-            const pages = Math.max(1, Math.round(file.size / 51200));
+          files.forEach(async (file) => {
+            const pages = await getExactPageCountFromFile(file);
+            const blobUrl = (typeof URL !== 'undefined' && URL.createObjectURL) ? URL.createObjectURL(file) : null;
             const newFile = {
               id: nextId('F'),
               name: file.name,
               sizeBytes: file.size,
               pages: pages,
+              fileUrl: blobUrl,
+              fileObj: file,
               status: 'ready'
             };
             setPrintFiles(prev => [...prev, newFile]);
-            showToast(`Added ${file.name}`);
+            showToast(`Added ${file.name} (${pages} pg)`);
           });
         };
         input.click();
@@ -88,25 +93,28 @@ export default function PrintScreen({ onPrintSubmitted }) {
       });
 
       if (result.canceled) {
-        return; // Handle cancellation gracefully
+        return;
       }
 
       const assets = result.assets || (result.type === 'success' ? [result] : []);
       if (!assets.length) return;
 
-      assets.forEach(asset => {
+      for (const asset of assets) {
         const size = asset.size || 50000;
-        const pages = Math.max(1, Math.round(size / 51200));
+        const pages = await getExactPageCountFromFile(asset.file || asset.uri);
+        const blobUrl = asset.uri || (asset.file && typeof URL !== 'undefined' && URL.createObjectURL ? URL.createObjectURL(asset.file) : null);
         const newFile = {
           id: nextId('F'),
           name: asset.name || 'Document.pdf',
           sizeBytes: size,
           pages: pages,
+          fileUrl: blobUrl,
+          fileObj: asset.file,
           status: 'ready'
         };
         setPrintFiles(prev => [...prev, newFile]);
-        showToast(`Added ${asset.name || 'Document.pdf'}`);
-      });
+        showToast(`Added ${asset.name || 'Document.pdf'} (${pages} pg)`);
+      }
     } catch (err) {
       console.warn('File picker warning:', err);
     }
@@ -218,10 +226,13 @@ export default function PrintScreen({ onPrintSubmitted }) {
                 </View>
                 <View style={{ flex: 1 }}>
                   <Text style={styles.fileName} numberOfLines={1}>{f.name}</Text>
-                  <Text style={styles.fileSub}>{(f.sizeBytes / 1024).toFixed(0)} KB · {f.pages} pages</Text>
+                  <Text style={styles.fileSub}>{(f.sizeBytes / 1024).toFixed(0)} KB · {f.pages} {f.pages === 1 ? 'page' : 'pages'}</Text>
                 </View>
               </View>
-              <Button title="✕" variant="outline" small onPress={() => removeFile(f.id)} />
+              <View style={{ flexDirection: 'row', gap: 6 }}>
+                <Button title="👁️ Preview" variant="outline" small onPress={() => setPreviewingFile(f)} />
+                <Button title="✕" variant="outline" small onPress={() => removeFile(f.id)} />
+              </View>
             </View>
           ))}
         </Card>
@@ -396,6 +407,47 @@ export default function PrintScreen({ onPrintSubmitted }) {
           </View>
         )}
       </View>
+
+      {/* PDF Preview Modal */}
+      <Modal
+        visible={Boolean(previewingFile)}
+        animationType="slide"
+        transparent={false}
+        onRequestClose={() => setPreviewingFile(null)}
+      >
+        <SafeAreaView style={{ flex: 1, backgroundColor: COLORS.bg }}>
+          <View style={styles.modalHeader}>
+            <Text style={styles.modalTitle} numberOfLines={1}>
+              Preview: {previewingFile?.name}
+            </Text>
+            <Button
+              title="Close Preview"
+              variant="outline"
+              small
+              onPress={() => setPreviewingFile(null)}
+            />
+          </View>
+          <View style={styles.modalBody}>
+            {Platform.OS === 'web' && previewingFile?.fileUrl ? (
+              <iframe
+                src={previewingFile.fileUrl}
+                style={{ width: '100%', height: '100%', border: 'none', backgroundColor: '#FFF' }}
+                title={previewingFile.name}
+              />
+            ) : (
+              <View style={styles.previewFallback}>
+                <Text style={{ fontSize: 48, marginBottom: 12 }}>📄</Text>
+                <Text style={{ fontSize: 16, fontWeight: '700', color: COLORS.text, textAlign: 'center' }}>
+                  {previewingFile?.name}
+                </Text>
+                <Text style={{ fontSize: 13, color: COLORS.muted, marginTop: 6, textAlign: 'center' }}>
+                  {previewingFile?.pages} {previewingFile?.pages === 1 ? 'page' : 'pages'} · {((previewingFile?.sizeBytes || 0) / 1024).toFixed(0)} KB
+                </Text>
+              </View>
+            )}
+          </View>
+        </SafeAreaView>
+      </Modal>
     </ScrollView>
   );
 }
@@ -585,5 +637,32 @@ const styles = StyleSheet.create({
     fontWeight: '600',
     color: COLORS.text,
     textAlign: 'center',
+  },
+  modalHeader: {
+    flexDirection: 'row',
+    alignItems: 'center',
+    justifyContent: 'space-between',
+    paddingHorizontal: 20,
+    paddingVertical: 14,
+    backgroundColor: COLORS.card,
+    borderBottomWidth: 1,
+    borderBottomColor: COLORS.line,
+  },
+  modalTitle: {
+    fontSize: 14,
+    fontWeight: '700',
+    color: COLORS.primaryDark,
+    flex: 1,
+    marginRight: 10,
+  },
+  modalBody: {
+    flex: 1,
+    backgroundColor: COLORS.bg,
+  },
+  previewFallback: {
+    flex: 1,
+    alignItems: 'center',
+    justifyContent: 'center',
+    padding: 30,
   }
 });

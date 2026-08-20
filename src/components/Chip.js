@@ -4,6 +4,9 @@ import { COLORS } from '../theme/theme';
 
 export default function Chip({ label, type = 'info', style, textStyle }) {
   const getStyle = () => {
+    if (label === 'Not Collected' || label === 'Cancelled') {
+      return { bg: COLORS.errorBg, text: '#A83231' };
+    }
     switch (type) {
       case 'success':
       case 'instock':

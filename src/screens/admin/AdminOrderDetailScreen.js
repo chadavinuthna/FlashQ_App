@@ -80,14 +80,49 @@ export default function AdminOrderDetailScreen({ orderId, onBack }) {
 
       {o.status === 'Cancelled' ? (
         <Text style={styles.subText}>This order was cancelled by the student.</Text>
-      ) : nextStep ? (
-        <Button
-          title={`Mark as ${nextStep}`}
-          variant="success"
-          onPress={() => advanceOrder(nextStep)}
-        />
       ) : (
-        <Text style={styles.subText}>Order fully collected.</Text>
+        <View>
+          {nextStep && o.status !== 'Collected' && o.status !== 'Not Collected' && (
+            <Button
+              title={`Mark as ${nextStep}`}
+              variant="success"
+              onPress={() => advanceOrder(nextStep)}
+              style={{ marginBottom: 10 }}
+            />
+          )}
+
+          {o.status === 'Ready For Pickup' && (
+            <Button
+              title="Mark as Not Collected"
+              variant="danger"
+              onPress={() => advanceOrder('Not Collected')}
+            />
+          )}
+
+          {o.status === 'Collected' && (
+            <View>
+              <Text style={styles.subText}>Order fully collected (Counts toward revenue).</Text>
+              <Button
+                title="Change status to Not Collected"
+                variant="outline"
+                onPress={() => advanceOrder('Not Collected')}
+                style={{ marginTop: 10 }}
+              />
+            </View>
+          )}
+
+          {o.status === 'Not Collected' && (
+            <View>
+              <Text style={styles.subText}>Order not collected (Excluded from revenue).</Text>
+              <Button
+                title="Mark as Collected"
+                variant="success"
+                onPress={() => advanceOrder('Collected')}
+                style={{ marginTop: 10 }}
+              />
+            </View>
+          )}
+        </View>
       )}
     </ScrollView>
   );

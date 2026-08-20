@@ -1,5 +1,5 @@
 import React, { useState } from 'react';
-import { View, Text, TouchableOpacity, ScrollView, StyleSheet } from 'react-native';
+import { View, Text, TouchableOpacity, ScrollView, StyleSheet, Modal } from 'react-native';
 import Card from '../../components/Card';
 import Button from '../../components/Button';
 import Chip from '../../components/Chip';
@@ -9,8 +9,9 @@ import { COLORS } from '../../theme/theme';
 export default function PrintQueueScreen({ onSelectPrint }) {
   const { printOrders, setPrintOrders, pushNotification, showToast } = useApp();
   const [selectedPrints, setSelectedPrints] = useState([]);
+  const [showConfirmModal, setShowConfirmModal] = useState(false);
 
-  const activeIds = printOrders.filter(o => o.status !== 'Collected' && o.status !== 'Cancelled').map(o => o.id);
+  const activeIds = printOrders.filter(o => o.status !== 'Collected' && o.status !== 'Cancelled' && o.status !== 'Not Collected').map(o => o.id);
   const allSelected = activeIds.length > 0 && activeIds.every(id => selectedPrints.includes(id));
 
   const toggleSelect = (id) => {
@@ -24,13 +25,27 @@ export default function PrintQueueScreen({ onSelectPrint }) {
   const selectAll = () => setSelectedPrints(activeIds);
   const clearSelection = () => setSelectedPrints([]);
 
-  const bulkAdvance = () => {
-    const steps = ['Placed', 'Printing', 'Ready', 'Collected'];
+  const steps = ['Placed', 'Printing', 'Ready', 'Collected'];
+  const getNextStatus = (currentStatus) => {
+    const idx = steps.indexOf(currentStatus);
+    return idx >= 0 && idx < steps.length - 1 ? steps[idx + 1] : null;
+  };
+
+  const selectedItems = printOrders.filter(o => selectedPrints.includes(o.id));
+  const breakdown = {};
+  selectedItems.forEach(o => {
+    const next = getNextStatus(o.status);
+    if (next) {
+      breakdown[next] = (breakdown[next] || 0) + 1;
+    }
+  });
+  const breakdownEntries = Object.entries(breakdown);
+
+  const handleConfirmBulkAdvance = () => {
     let count = 0;
     setPrintOrders(prev => prev.map(o => {
-      if (selectedPrints.includes(o.id) && o.status !== 'Collected' && o.status !== 'Cancelled') {
-        const idx = steps.indexOf(o.status);
-        const next = steps[idx + 1];
+      if (selectedPrints.includes(o.id)) {
+        const next = getNextStatus(o.status);
         if (next) {
           count++;
           if (next === 'Ready') {
@@ -42,7 +57,8 @@ export default function PrintQueueScreen({ onSelectPrint }) {
       return o;
     }));
     setSelectedPrints([]);
-    showToast(`${count} print job(s) advanced`);
+    setShowConfirmModal(false);
+    showToast(`${count} print job(s) updated`);
   };
 
   const printSummary = (o) => {
@@ -53,6 +69,22 @@ export default function PrintQueueScreen({ onSelectPrint }) {
 
   return (
     <ScrollView contentContainerStyle={styles.container}>
+      <Modal visible={showConfirmModal} transparent animationType="fade">
+        <View style={styles.modalOverlay}>
+          <View style={styles.modalContent}>
+            <Text style={styles.modalTitle}>Confirm Advance</Text>
+            <Text style={styles.modalBody}>The selected jobs will move to the next status:</Text>
+            {breakdownEntries.map(([status, count]) => (
+              <Text key={status} style={styles.breakdownText}>• {count} item(s) → {status}</Text>
+            ))}
+            <View style={styles.modalActions}>
+              <Button title="Cancel" variant="ghost" onPress={() => setShowConfirmModal(false)} />
+              <Button title="Confirm" variant="success" onPress={handleConfirmBulkAdvance} />
+            </View>
+          </View>
+        </View>
+      </Modal>
+
       <View style={styles.topline}>
         <Text style={styles.eyebrow}>Requests</Text>
         <Text style={styles.h1}>Print Queue</Text>
@@ -72,8 +104,8 @@ export default function PrintQueueScreen({ onSelectPrint }) {
 
         {selectedPrints.length > 0 && (
           <Card tint style={styles.bulkCard}>
-            <Text style={styles.subText}>{selectedPrints.length} job(s) selected</Text>
-            <Button title="Advance Selected →" variant="success" small onPress={bulkAdvance} />
+            <Text style={styles.subText}>{selectedPrints.length} print job(s) selected</Text>
+            <Button title="Advance Selected" variant="success" small onPress={() => setShowConfirmModal(true)} />
           </Card>
         )}
 
@@ -217,5 +249,43 @@ const styles = StyleSheet.create({
     color: COLORS.muted,
     textAlign: 'center',
     marginTop: 4,
+  },
+  modalOverlay: {
+    flex: 1,
+    backgroundColor: 'rgba(0,0,0,0.5)',
+    justifyContent: 'center',
+    alignItems: 'center',
+    padding: 20,
+  },
+  modalContent: {
+    width: '100%',
+    maxWidth: 420,
+    backgroundColor: COLORS.card,
+    borderRadius: 18,
+    padding: 20,
+    borderWidth: 1,
+    borderColor: COLORS.line,
+  },
+  modalTitle: {
+    fontSize: 16,
+    fontWeight: '700',
+    color: COLORS.primaryDark,
+    marginBottom: 6,
+  },
+  modalBody: {
+    fontSize: 12.5,
+    color: COLORS.muted,
+    marginBottom: 10,
+  },
+  breakdownText: {
+    fontSize: 13,
+    color: COLORS.text,
+    paddingVertical: 2,
+  },
+  modalActions: {
+    flexDirection: 'row',
+    justifyContent: 'flex-end',
+    gap: 10,
+    marginTop: 14,
   }
 });

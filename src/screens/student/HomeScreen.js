@@ -32,6 +32,9 @@ export default function HomeScreen({ onNavigate }) {
       <View style={styles.topline}>
         <Text style={styles.eyebrow}>Welcome back</Text>
         <Text style={styles.h1}>{studentRoll} 👋</Text>
+        <Text style={styles.sub}>What would you like to do today?</Text>
+      </View>
+
       <View style={styles.screenpad}>
         {/* Prominent Store Status Banner */}
         <Card

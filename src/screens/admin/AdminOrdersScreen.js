@@ -12,7 +12,47 @@ export default function AdminOrdersScreen({ onSelectOrder }) {
   const [selectedOrders, setSelectedOrders] = useState([]);
   const [showConfirmModal, setShowConfirmModal] = useState(false);
 
-  const activeIds = orders.filter(o => o.status !== 'Collected' && o.status !== 'Cancelled' && o.status !== 'Not Collected').map(o => o.id);
+  const todayStr = new Date().toISOString().split('T')[0];
+  const [fromDate, setFromDate] = useState(todayStr);
+  const [toDate, setToDate] = useState(todayStr);
+  const [preset, setPreset] = useState('today');
+
+  const applyPreset = (p) => {
+    setPreset(p);
+    const now = new Date();
+    const today = now.toISOString().split('T')[0];
+    if (p === 'today') {
+      setFromDate(today);
+      setToDate(today);
+    } else if (p === '7days') {
+      const d = new Date();
+      d.setDate(d.getDate() - 6);
+      setFromDate(d.toISOString().split('T')[0]);
+      setToDate(today);
+    } else if (p === 'month') {
+      const firstDay = new Date(now.getFullYear(), now.getMonth(), 1).toISOString().split('T')[0];
+      setFromDate(firstDay);
+      setToDate(today);
+    } else if (p === 'all') {
+      setFromDate('');
+      setToDate('');
+    }
+  };
+
+  const getOrderDateStr = (o) => {
+    if (o.createdDate) return o.createdDate;
+    if (o.timestamp) return new Date(o.timestamp).toISOString().split('T')[0];
+    return todayStr;
+  };
+
+  const filteredOrders = orders.filter(o => {
+    const d = getOrderDateStr(o);
+    if (fromDate && d < fromDate) return false;
+    if (toDate && d > toDate) return false;
+    return true;
+  });
+
+  const activeIds = filteredOrders.filter(o => o.status !== 'Collected' && o.status !== 'Cancelled' && o.status !== 'Not Collected').map(o => o.id);
   const allSelected = activeIds.length > 0 && activeIds.every(id => selectedOrders.includes(id));
 
   const toggleSelect = (id) => {
@@ -32,7 +72,7 @@ export default function AdminOrdersScreen({ onSelectOrder }) {
     return idx >= 0 && idx < steps.length - 1 ? steps[idx + 1] : null;
   };
 
-  const selectedItems = orders.filter(o => selectedOrders.includes(o.id));
+  const selectedItems = filteredOrders.filter(o => selectedOrders.includes(o.id));
   const breakdown = {};
   selectedItems.forEach(o => {
     const next = getNextStatus(o.status);
@@ -65,11 +105,55 @@ export default function AdminOrdersScreen({ onSelectOrder }) {
   return (
     <ScrollView contentContainerStyle={styles.container}>
       <View style={styles.topline}>
-        <Text style={styles.eyebrow}>Today</Text>
-        <Text style={styles.h1}>Orders</Text>
+        <Text style={styles.eyebrow}>History & Orders</Text>
+        <Text style={styles.h1}>Order History</Text>
       </View>
 
       <View style={styles.screenpad}>
+        {/* Date Range Filter Card */}
+        <Card style={styles.filterCard}>
+          <Text style={styles.filterTitle}>📅 Order History Filter</Text>
+          <View style={styles.presetRow}>
+            <TouchableOpacity style={[styles.presetBtn, preset === 'today' && styles.presetActive]} onPress={() => applyPreset('today')}>
+              <Text style={[styles.presetText, preset === 'today' && styles.presetTextActive]}>Today</Text>
+            </TouchableOpacity>
+            <TouchableOpacity style={[styles.presetBtn, preset === '7days' && styles.presetActive]} onPress={() => applyPreset('7days')}>
+              <Text style={[styles.presetText, preset === '7days' && styles.presetTextActive]}>Last 7 Days</Text>
+            </TouchableOpacity>
+            <TouchableOpacity style={[styles.presetBtn, preset === 'month' && styles.presetActive]} onPress={() => applyPreset('month')}>
+              <Text style={[styles.presetText, preset === 'month' && styles.presetTextActive]}>This Month</Text>
+            </TouchableOpacity>
+            <TouchableOpacity style={[styles.presetBtn, preset === 'all' && styles.presetActive]} onPress={() => applyPreset('all')}>
+              <Text style={[styles.presetText, preset === 'all' && styles.presetTextActive]}>All Time</Text>
+            </TouchableOpacity>
+          </View>
+
+          <View style={styles.dateInputsRow}>
+            <View style={{ flex: 1 }}>
+              <Input
+                label="From Date"
+                value={fromDate}
+                onChangeText={(v) => { setFromDate(v); setPreset('custom'); }}
+                placeholder="YYYY-MM-DD"
+              />
+            </View>
+            <View style={{ flex: 1, marginLeft: 10 }}>
+              <Input
+                label="To Date"
+                value={toDate}
+                onChangeText={(v) => { setToDate(v); setPreset('custom'); }}
+                placeholder="YYYY-MM-DD"
+              />
+            </View>
+          </View>
+
+          <View style={styles.statsRow}>
+            <Text style={styles.filterSummaryText}>
+              Showing <Text style={{ fontWeight: '700' }}>{filteredOrders.length}</Text> order(s) · Revenue: <Text style={{ fontWeight: '700', color: COLORS.primaryDark }}>{money(filteredOrders.filter(o => o.status === 'Collected').reduce((s, o) => s + o.total, 0))}</Text>
+            </Text>
+          </View>
+        </Card>
+
         {activeIds.length > 0 && (
           <View style={styles.rowBetween}>
             <TouchableOpacity onPress={allSelected ? clearSelection : selectAll}>
@@ -88,8 +172,8 @@ export default function AdminOrdersScreen({ onSelectOrder }) {
           </Card>
         )}
 
-        {orders.length ? (
-          orders.map(o => {
+        {filteredOrders.length ? (
+          filteredOrders.map(o => {
             const canSelect = o.status !== 'Collected' && o.status !== 'Cancelled' && o.status !== 'Not Collected';
             const isSelected = selectedOrders.includes(o.id);
             return (
@@ -209,6 +293,57 @@ const styles = StyleSheet.create({
     fontWeight: '600',
   },
   subText: {
+    fontSize: 12,
+    color: COLORS.muted,
+  },
+  filterCard: {
+    marginBottom: 14,
+    padding: 14,
+  },
+  filterTitle: {
+    fontSize: 13,
+    fontWeight: '700',
+    color: COLORS.primaryDark,
+    marginBottom: 10,
+  },
+  presetRow: {
+    flexDirection: 'row',
+    flexWrap: 'wrap',
+    gap: 6,
+    marginBottom: 10,
+  },
+  presetBtn: {
+    paddingHorizontal: 10,
+    paddingVertical: 5,
+    borderRadius: 8,
+    backgroundColor: COLORS.bg,
+    borderWidth: 1,
+    borderColor: COLORS.line,
+  },
+  presetActive: {
+    backgroundColor: COLORS.primary,
+    borderColor: COLORS.primary,
+  },
+  presetText: {
+    fontSize: 11.5,
+    fontWeight: '600',
+    color: COLORS.muted,
+  },
+  presetTextActive: {
+    color: '#FFF',
+  },
+  dateInputsRow: {
+    flexDirection: 'row',
+    alignItems: 'center',
+    marginBottom: 6,
+  },
+  statsRow: {
+    marginTop: 6,
+    paddingTop: 8,
+    borderTopWidth: 1,
+    borderTopColor: COLORS.line,
+  },
+  filterSummaryText: {
     fontSize: 12,
     color: COLORS.muted,
   },

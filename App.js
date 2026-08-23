@@ -100,7 +100,17 @@ function MainApp() {
 
   const renderStudentContent = () => {
     if (!isLoggedIn) {
-      return <StudentAuthScreen onSwitchRole={() => setRole('admin')} />;
+      return (
+        <StudentAuthScreen
+          onSwitchRole={() => setRole('admin')}
+          onLoginSuccess={() => {
+            setStudentScreen('home');
+            setNavStack([]);
+            setViewProductId(null);
+            setViewOrderId(null);
+          }}
+        />
+      );
     }
 
     if (studentScreen === 'products') {

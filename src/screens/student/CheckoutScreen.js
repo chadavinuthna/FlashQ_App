@@ -109,7 +109,9 @@ export default function CheckoutScreen({ onOrderConfirmed, onBackToCart }) {
       total: grandTotal,
       slot: checkoutSlot,
       status: 'Accepted',
-      createdAt: new Date().toLocaleTimeString([], { hour: '2-digit', minute: '2-digit' })
+      createdAt: new Date().toLocaleTimeString([], { hour: '2-digit', minute: '2-digit' }),
+      createdDate: new Date().toISOString().split('T')[0],
+      timestamp: Date.now()
     };
 
     setOrders(prev => [newOrder, ...prev]);

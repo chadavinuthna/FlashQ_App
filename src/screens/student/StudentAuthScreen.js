@@ -9,7 +9,7 @@ import { useApp } from '../../context/AppContext';
 import { isValidPassword } from '../../utils/slotHelper';
 import { COLORS } from '../../theme/theme';
 
-export default function StudentAuthScreen({ onSwitchRole }) {
+export default function StudentAuthScreen({ onSwitchRole, onLoginSuccess }) {
   const { loginStudent, signupStudent } = useAuth();
   const { students, setStudents, showToast } = useApp();
 
@@ -34,6 +34,8 @@ export default function StudentAuthScreen({ onSwitchRole }) {
     const res = await loginStudent(loginRoll.trim(), loginPw, students);
     if (!res.success) {
       showToast(res.message);
+    } else if (onLoginSuccess) {
+      onLoginSuccess();
     }
   };
 

@@ -176,7 +176,9 @@ export default function PrintScreen({ onPrintSubmitted }) {
       cost: totalCost,
       slot: activeSlot,
       status: 'Placed',
-      createdAt: new Date().toLocaleTimeString([], { hour: '2-digit', minute: '2-digit' })
+      createdAt: new Date().toLocaleTimeString([], { hour: '2-digit', minute: '2-digit' }),
+      createdDate: new Date().toISOString().split('T')[0],
+      timestamp: Date.now()
     };
 
     setPrintOrders(prev => [newOrder, ...prev]);

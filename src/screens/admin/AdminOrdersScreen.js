@@ -40,19 +40,30 @@ export default function AdminOrdersScreen({ onSelectOrder }) {
   };
 
   const getOrderDateStr = (o) => {
+    if (!o) return todayStr;
     if (o.createdDate) return o.createdDate;
-    if (o.timestamp) return new Date(o.timestamp).toISOString().split('T')[0];
+    if (o.timestamp) {
+      try {
+        return new Date(o.timestamp).toISOString().split('T')[0];
+      } catch (e) {
+        return todayStr;
+      }
+    }
+    if (o.date) return o.date;
     return todayStr;
   };
 
-  const filteredOrders = orders.filter(o => {
+  const safeOrders = Array.isArray(orders) ? orders : [];
+
+  const filteredOrders = safeOrders.filter(o => {
+    if (!o) return false;
     const d = getOrderDateStr(o);
     if (fromDate && d < fromDate) return false;
     if (toDate && d > toDate) return false;
     return true;
   });
 
-  const activeIds = filteredOrders.filter(o => o.status !== 'Collected' && o.status !== 'Cancelled' && o.status !== 'Not Collected').map(o => o.id);
+  const activeIds = filteredOrders.filter(o => o && o.status !== 'Collected' && o.status !== 'Cancelled' && o.status !== 'Not Collected').map(o => o.id);
   const allSelected = activeIds.length > 0 && activeIds.every(id => selectedOrders.includes(id));
 
   const toggleSelect = (id) => {
@@ -72,7 +83,7 @@ export default function AdminOrdersScreen({ onSelectOrder }) {
     return idx >= 0 && idx < steps.length - 1 ? steps[idx + 1] : null;
   };
 
-  const selectedItems = filteredOrders.filter(o => selectedOrders.includes(o.id));
+  const selectedItems = filteredOrders.filter(o => o && selectedOrders.includes(o.id));
   const breakdown = {};
   selectedItems.forEach(o => {
     const next = getNextStatus(o.status);
@@ -84,8 +95,8 @@ export default function AdminOrdersScreen({ onSelectOrder }) {
 
   const handleConfirmBulkAdvance = () => {
     let count = 0;
-    setOrders(prev => prev.map(o => {
-      if (selectedOrders.includes(o.id)) {
+    setOrders(prev => (Array.isArray(prev) ? prev : []).map(o => {
+      if (o && selectedOrders.includes(o.id)) {
         const next = getNextStatus(o.status);
         if (next) {
           count++;
@@ -101,6 +112,10 @@ export default function AdminOrdersScreen({ onSelectOrder }) {
     setShowConfirmModal(false);
     showToast(`${count} order(s) updated`);
   };
+
+  const calculatedRevenue = filteredOrders
+    .filter(o => o && o.status === 'Collected')
+    .reduce((s, o) => s + (Number(o.total) || Number(o.cost) || 0), 0);
 
   return (
     <ScrollView contentContainerStyle={styles.container}>
@@ -149,7 +164,7 @@ export default function AdminOrdersScreen({ onSelectOrder }) {
 
           <View style={styles.statsRow}>
             <Text style={styles.filterSummaryText}>
-              Showing <Text style={{ fontWeight: '700' }}>{filteredOrders.length}</Text> order(s) · Revenue: <Text style={{ fontWeight: '700', color: COLORS.primaryDark }}>{money(filteredOrders.filter(o => o.status === 'Collected').reduce((s, o) => s + o.total, 0))}</Text>
+              Showing <Text style={{ fontWeight: '700' }}>{filteredOrders.length}</Text> order(s) · Revenue: <Text style={{ fontWeight: '700', color: COLORS.primaryDark }}>{money(calculatedRevenue)}</Text>
             </Text>
           </View>
         </Card>
@@ -174,13 +189,15 @@ export default function AdminOrdersScreen({ onSelectOrder }) {
 
         {filteredOrders.length ? (
           filteredOrders.map(o => {
+            if (!o) return null;
             const canSelect = o.status !== 'Collected' && o.status !== 'Cancelled' && o.status !== 'Not Collected';
             const isSelected = selectedOrders.includes(o.id);
+            const itemCount = Array.isArray(o.items) ? o.items.length : (Array.isArray(o.files) ? o.files.length : (o.itemCount || 1));
             return (
               <TouchableOpacity
                 key={o.id}
                 activeOpacity={0.8}
-                onPress={() => onSelectOrder(o.id)}
+                onPress={() => onSelectOrder && onSelectOrder(o.id)}
               >
                 <Card style={styles.orderRow}>
                   <View style={styles.rowLeft}>
@@ -196,11 +213,11 @@ export default function AdminOrdersScreen({ onSelectOrder }) {
                     )}
                     <View style={{ flex: 1 }}>
                       <Text style={styles.orderId}>{o.id}{o.emergency ? ' ⚡' : ''}</Text>
-                      <Text style={styles.orderSub}>{o.roll} · {o.items.length} item(s) · {o.slot}</Text>
+                      <Text style={styles.orderSub}>{o.roll || o.studentRoll || 'Student'} · {itemCount} item(s) · {o.slot || 'N/A'}</Text>
                     </View>
                   </View>
                   <Chip
-                    label={o.status}
+                    label={o.status || 'Accepted'}
                     type={o.status === 'Collected' ? 'success' : (o.status === 'Cancelled' || o.status === 'Not Collected') ? 'error' : 'pending'}
                   />
                 </Card>
